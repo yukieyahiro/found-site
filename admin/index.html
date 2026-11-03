@@ -507,7 +507,8 @@ function icone(nome) {
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
     zap: '<path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/>',
     pin: '<path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6zM12 15v6"/>',
-    abrir: '<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>'
+    abrir: '<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+    baixar: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'
   }[nome] || "";
   return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + p + "</svg>";
 }
@@ -691,9 +692,10 @@ function carregaClientes() {
     '<div class="bloco-topo"><h2>Base de clientes <span class="contagem" id="cli-contagem"></span></h2><div class="dir">' +
     '<div class="campo-busca">' + icone("busca") + '<input type="search" id="cli-busca" placeholder="Buscar por nome"></div>' +
     '<select class="filtro" id="cli-filtro"><option value="">Todas as situações</option>' + SITUACOES.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + "</option>"; }).join("") + '</select>' +
+    '<button class="btn" id="cli-csv" type="button">' + icone("baixar") + 'Baixar CSV</button>' +
     '<button class="btn escuro" id="cli-novo" type="button">' + icone("mais") + 'Novo cliente</button>' +
     '</div></div>' +
-    '<div class="tabela-rola"><table><thead><tr><th>Nome</th><th>Situação</th><th>Serviço</th><th class="num">Valor mensal</th><th>Contato</th><th class="acoes"></th></tr></thead><tbody id="cli-corpo"></tbody></table></div>' +
+    '<div class="tabela-rola"><table><thead><tr><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th><th class="acoes"></th></tr></thead><tbody id="cli-corpo"></tbody></table></div>' +
     '</section>';
 
   buscaTudo("found_clientes", "criado_em", false).then(function (lista) {
@@ -704,27 +706,32 @@ function carregaClientes() {
   $("#cli-novo").addEventListener("click", function () { abreModalCliente(null); });
   $("#cli-busca").addEventListener("input", renderizaClientes);
   $("#cli-filtro").addEventListener("change", renderizaClientes);
+  $("#cli-csv").addEventListener("click", baixarClientesCSV);
 }
-function renderizaClientes() {
+function clientesFiltrados() {
   var termo = ($("#cli-busca").value || "").toLowerCase();
   var filtroSit = $("#cli-filtro").value;
-  var lista = E.clientes.filter(function (c) {
+  return E.clientes.filter(function (c) {
     if (filtroSit && c.situacao !== filtroSit) return false;
     if (termo && semEx(c.nome).toLowerCase().indexOf(termo) === -1) return false;
     return true;
   });
+}
+function renderizaClientes() {
+  var lista = clientesFiltrados();
   $("#cli-contagem").textContent = "(" + lista.length + ")";
   var corpo = $("#cli-corpo");
-  if (!lista.length) { corpo.innerHTML = '<tr><td colspan="6"><div class="vazio">Nenhum cliente encontrado.</div></td></tr>'; return; }
+  if (!lista.length) { corpo.innerHTML = '<tr><td colspan="8"><div class="vazio">Nenhum cliente encontrado.</div></td></tr>'; return; }
   corpo.innerHTML = lista.map(function (c) {
     var sit = SITUACOES.find(function (s) { return s[0] === c.situacao; }) || SITUACOES[0];
     return '<tr class="clicavel" data-id="' + c.id + '">' +
       '<td><b>' + esc(semEx(c.nome)) + "</b>" + tagEx(c.nome) + "</td>" +
+      "<td>" + (c.instagram ? '<a class="insta" target="_blank" rel="noopener" href="https://instagram.com/' + esc((c.instagram || "").replace("@", "")) + '">@' + esc((c.instagram || "").replace("@", "")) + "</a>" : "—") + "</td>" +
+      "<td>" + esc(c.email || "—") + "</td>" +
+      "<td>" + (c.whatsapp ? '<a class="zap" target="_blank" rel="noopener" href="https://wa.me/' + esc((c.whatsapp || "").replace(/\D/g, "")) + '">' + icone("zap") + esc(c.whatsapp) + "</a>" : "—") + "</td>" +
       '<td><span class="pilula ' + sit[2] + '">' + sit[1] + "</span></td>" +
-      "<td>" + esc(c.servico || "—") + "</td>" +
-      '<td class="num">' + (c.valor_mensal ? moeda(c.valor_mensal) : "—") + "</td>" +
-      "<td>" + (c.whatsapp ? '<a class="zap" target="_blank" rel="noopener" href="https://wa.me/' + esc((c.whatsapp || "").replace(/\D/g, "")) + '">' + icone("zap") + "Whats</a>" : "") +
-      (c.instagram ? ' <a class="insta" target="_blank" rel="noopener" href="https://instagram.com/' + esc((c.instagram || "").replace("@", "")) + '">@' + esc((c.instagram || "").replace("@", "")) + "</a>" : "") + "</td>" +
+      '<td class="trunca" title="' + esc(c.nota || "") + '">' + esc(c.nota || "—") + "</td>" +
+      "<td>" + (c.ultimo_contato ? fmtData(c.ultimo_contato) : "—") + "</td>" +
       '<td class="acoes"><button class="icone" type="button" data-editar="' + c.id + '" aria-label="Editar">' + icone("lapis") + '</button><button class="icone" type="button" data-apagar="' + c.id + '" aria-label="Apagar">' + icone("lixo") + "</button></td>" +
       "</tr>";
   }).join("");
@@ -733,6 +740,26 @@ function renderizaClientes() {
   });
   $$("#cli-corpo [data-editar]").forEach(function (b) { b.addEventListener("click", function () { abreModalCliente(b.dataset.editar); }); });
   $$("#cli-corpo [data-apagar]").forEach(function (b) { b.addEventListener("click", function () { confirmaApagar("found_clientes", b.dataset.apagar, carregaClientes); }); });
+}
+function celulaCSV(v) {
+  var s = String(v == null ? "" : v).replace(/"/g, '""');
+  return '"' + s + '"';
+}
+function baixarClientesCSV() {
+  var lista = clientesFiltrados();
+  var cabecalho = ["Marca", "Instagram", "E-mail", "Telefone", "Situação", "Observação", "Último contato"];
+  var linhas = lista.map(function (c) {
+    var sit = SITUACOES.find(function (s) { return s[0] === c.situacao; });
+    return [semEx(c.nome), c.instagram || "", c.email || "", c.whatsapp || "", sit ? sit[1] : c.situacao, c.nota || "", c.ultimo_contato ? fmtData(c.ultimo_contato) : ""].map(celulaCSV).join(",");
+  });
+  var csv = "﻿" + [cabecalho.map(celulaCSV).join(","), linhas.join("\n")].join("\n");
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "clientes-found-" + hojeISO() + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 function abreModalCliente(id) {
   var c = id ? E.clientes.find(function (x) { return x.id === id; }) : null;
@@ -746,6 +773,7 @@ function abreModalCliente(id) {
     '<div class="campo"><label>Instagram</label><input id="f-instagram" value="' + esc(c ? c.instagram : "") + '" placeholder="@usuario"></div>' +
     '<div class="campo"><label>WhatsApp</label><input id="f-whatsapp" value="' + esc(c ? c.whatsapp : "") + '" placeholder="5511999999999"></div>' +
     '<div class="campo"><label>E-mail</label><input id="f-email" type="email" value="' + esc(c ? c.email : "") + '"></div>' +
+    '<div class="campo"><label>Último contato</label><input id="f-ultimo" type="date" value="' + (c && c.ultimo_contato ? c.ultimo_contato : "") + '"></div>' +
     '<div class="campo inteiro"><label>Nota</label><textarea id="f-nota">' + esc(c ? c.nota : "") + "</textarea></div>" +
     "</div>";
   abreModal({
@@ -764,6 +792,7 @@ function abreModalCliente(id) {
         instagram: $("#f-instagram").value.trim() || null,
         whatsapp: $("#f-whatsapp").value.trim() || null,
         email: $("#f-email").value.trim() || null,
+        ultimo_contato: $("#f-ultimo").value || null,
         nota: $("#f-nota").value.trim() || null
       };
       return salvar("found_clientes", linha, c ? c.id : null).then(function (ok) { if (ok) { fechaModal(); carregaClientes(); } return ok ? "" : "Não foi possível salvar."; });

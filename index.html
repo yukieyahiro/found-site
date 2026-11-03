@@ -1427,6 +1427,18 @@ contactForm.addEventListener("submit", async (e) => {
 
     formSuccess.classList.add("show");
     contactForm.reset();
+
+    // Também guarda como lead no painel interno (Supabase), além do e-mail.
+    // Isso é um "bônus": se falhar, não atrapalha o envio do formulário.
+    if (window.banco) {
+      window.banco.from("found_clientes").insert({
+        nome: dados.nome,
+        email: dados.email,
+        situacao: "lead",
+        origem: "Formulário do site",
+        nota: dados.mensagem
+      }).then(function (r) { if (r.error) console.warn("Não consegui salvar o lead no painel:", r.error.message); });
+    }
   } catch(err){
     // Sem back-end disponível (ex.: preview local) ou erro no envio: oferece o WhatsApp como alternativa.
     const texto = encodeURIComponent(`Olá! Meu nome é ${dados.nome}.\n${dados.mensagem}`);
