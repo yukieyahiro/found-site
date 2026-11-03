@@ -982,6 +982,10 @@
           <input type="email" id="email" name="email" placeholder="seuemail@email.com" required>
         </div>
         <div class="form-group">
+          <label for="whatsapp">WhatsApp (opcional)</label>
+          <input type="tel" id="whatsapp" name="whatsapp" placeholder="(11) 99999-9999" autocomplete="tel">
+        </div>
+        <div class="form-group">
           <label for="mensagem">Mensagem</label>
           <textarea id="mensagem" name="mensagem" rows="4" placeholder="Conta sobre o seu negócio e o desafio atual" required></textarea>
         </div>
@@ -1413,6 +1417,7 @@ contactForm.addEventListener("submit", async (e) => {
   const dados = {
     nome: document.getElementById("nome").value.trim(),
     email: document.getElementById("email").value.trim(),
+    whatsapp: document.getElementById("whatsapp").value.trim(),
     mensagem: document.getElementById("mensagem").value.trim()
   };
 
@@ -1434,6 +1439,7 @@ contactForm.addEventListener("submit", async (e) => {
       window.banco.from("found_clientes").insert({
         nome: dados.nome,
         email: dados.email,
+        whatsapp: dados.whatsapp || null,
         situacao: "lead",
         origem: "Formulário do site",
         nota: dados.mensagem
