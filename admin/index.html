@@ -321,13 +321,58 @@ details.sec[open] > summary{border-bottom:1px solid var(--line-2)}
   var banco = window.banco;
   var msg = document.getElementById("portao");
   if (!banco) { msg.textContent = "Não consegui carregar a ligação com o banco. Confira js/banco.js (preencha SUPABASE_URL e SUPABASE_CHAVE) e a internet."; return; }
-  banco.auth.getSession().then(function (r) {
-    var sessao = r && r.data && r.data.session;
-    if (!sessao) { location.replace("../login/"); return; }
+
+  var jaTratado = false;
+  banco.auth.onAuthStateChange(function (evento, sessao) {
+    if (evento === "PASSWORD_RECOVERY") {
+      jaTratado = true;
+      mostraFormNovaSenha(sessao);
+      return;
+    }
+    if (jaTratado || !sessao) return;
+    jaTratado = true;
     document.body.classList.remove("travado");
     iniciar(sessao);
-  }).catch(function () { location.replace("../login/"); });
+  });
+
+  banco.auth.getSession().then(function (r) {
+    if (jaTratado) return;
+    var sessao = r && r.data && r.data.session;
+    if (!sessao) { location.replace("../login/"); return; }
+  }).catch(function () { if (!jaTratado) location.replace("../login/"); });
 })();
+
+/* Quando o link de "esqueci minha senha" é clicado, o Supabase já loga a
+   sessão sozinho antes de redirecionar pra cá. Por isso, em vez de abrir
+   o painel direto, mostramos essa telinha pra você escolher a senha nova. */
+function mostraFormNovaSenha(sessao) {
+  var msg = document.getElementById("portao");
+  msg.innerHTML =
+    '<div style="max-width:360px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;font-weight:400">' +
+    '<h2 style="font-size:1.05rem;font-weight:800;margin-bottom:6px;">Defina sua nova senha</h2>' +
+    '<p style="color:var(--muted);font-size:.86rem;margin-bottom:16px;">Antes de continuar, escolha a nova senha para entrar no painel.</p>' +
+    '<div class="campo" style="margin-bottom:12px;"><label>Nova senha</label><input type="password" id="nova-senha" minlength="6"></div>' +
+    '<div class="campo" style="margin-bottom:14px;"><label>Confirmar senha</label><input type="password" id="confirma-senha" minlength="6"></div>' +
+    '<div class="erro-form" id="erro-nova-senha" hidden></div>' +
+    '<button class="btn escuro" type="button" id="salvar-nova-senha" style="width:100%;margin-top:10px;">Salvar nova senha</button>' +
+    "</div>";
+  document.getElementById("salvar-nova-senha").addEventListener("click", function () {
+    var nova = document.getElementById("nova-senha").value;
+    var conf = document.getElementById("confirma-senha").value;
+    var erroEl = document.getElementById("erro-nova-senha");
+    erroEl.hidden = true;
+    if (nova.length < 6) { erroEl.hidden = false; erroEl.textContent = "A senha precisa ter pelo menos 6 caracteres."; return; }
+    if (nova !== conf) { erroEl.hidden = false; erroEl.textContent = "As senhas não são iguais."; return; }
+    var btn = document.getElementById("salvar-nova-senha");
+    btn.disabled = true;
+    window.banco.auth.updateUser({ password: nova }).then(function (r) {
+      btn.disabled = false;
+      if (r.error) { erroEl.hidden = false; erroEl.textContent = "Não foi possível salvar: " + r.error.message; return; }
+      document.body.classList.remove("travado");
+      iniciar(sessao);
+    });
+  });
+}
 
 /* =========================================================
    2) LISTAS FIXAS DO PAINEL (pode editar)
