@@ -208,7 +208,8 @@ tr.fav td{background:#fcfdf6}
 .lista-tarefas li.feita .tarefa-t{text-decoration:line-through;color:var(--muted)}
 .mini-lista li{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:.84rem}
 .mini-lista li:last-child{border-bottom:0}
-.mini-lista .dir-item{margin-left:auto;white-space:nowrap}
+.mini-lista .dir-item,.lista-tarefas .dir-item{margin-left:auto;white-space:nowrap}
+.lista-tarefas li{flex-wrap:wrap}
 .duas{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
 @media (max-width:1000px){.duas{grid-template-columns:1fr}}
 
@@ -619,31 +620,83 @@ function iniciar(sessao) {
    ========================================================= */
 function carregaHoje() {
   var raiz = $("#aba-hoje");
-  raiz.innerHTML = '<div class="saudacao"><h2>Olá! 👋</h2><p id="data-hoje"></p></div><div class="faixa" id="hoje-numeros" style="--n:3"></div><div class="duas"><section class="card bloco"><div class="bloco-topo"><h2>Tarefas de hoje</h2></div><ul class="lista-tarefas" id="hoje-tarefas"></ul></section><section class="card bloco"><div class="bloco-topo"><h2>Próximos prazos</h2></div><ul class="mini-lista" id="hoje-prazos"></ul></section></div>';
+  var hora = new Date().getHours();
+  var saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  raiz.innerHTML =
+    '<div class="saudacao"><h2>' + saudacao + '!</h2><p id="data-hoje"></p></div>' +
+    '<div class="faixa" id="hoje-numeros" style="--n:5"></div>' +
+    '<div class="duas">' +
+    '<section class="card bloco"><div class="bloco-topo"><h2>Tarefas de hoje</h2><div class="dir"><a class="btn" href="#tarefas">Ver todas</a></div></div>' +
+    '<form class="rapido sem-borda" id="hoje-tar-form"><input type="text" id="hoje-tar-novo" placeholder="Nova tarefa pra hoje (Enter)"><button class="btn escuro" type="submit">' + icone("mais") + 'Adicionar</button></form>' +
+    '<ul class="lista-tarefas" id="hoje-tarefas"></ul></section>' +
+    '<section class="card bloco"><div class="bloco-topo"><h2>Agenda de hoje</h2><div class="dir"><a class="btn" href="#calendario">Calendário</a></div></div>' +
+    '<ul class="mini-lista" id="hoje-agenda"></ul></section>' +
+    '</div>' +
+    '<div class="duas">' +
+    '<section class="card bloco"><div class="bloco-topo"><h2>Prazos chegando</h2><div class="dir"><a class="btn" href="#projetos">Projetos</a></div></div>' +
+    '<ul class="mini-lista" id="hoje-prazos"></ul></section>' +
+    '<section class="card bloco"><div class="bloco-topo"><h2>Leads novos</h2><div class="dir"><a class="btn" href="#clientes">Clientes</a></div></div>' +
+    '<ul class="mini-lista" id="hoje-leads"></ul></section>' +
+    '</div>';
   var d = new Date();
   $("#data-hoje").textContent = d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
-  Promise.all([buscaTudo("found_tarefas", "data"), buscaTudo("found_clientes"), buscaTudo("found_calendario", "data")]).then(function (r) {
-    E.tarefas = r[0]; E.clientes = r[1]; E.calendario = r[2];
-    var tarefasHoje = E.tarefas.filter(function (t) { return !t.feita && (!t.data || t.data <= hojeISO()); });
-    var leadsAtivos = E.clientes.filter(function (c) { return ["lead", "conversando", "proposta"].indexOf(c.situacao) > -1; }).length;
-    var prazos = E.calendario.filter(function (c) { return !c.feito && c.data >= hojeISO(); }).sort(function (a, b) { return a.data < b.data ? -1 : 1; }).slice(0, 6);
-
-    $("#hoje-numeros").innerHTML =
-      "<div><small>Tarefas pendentes hoje</small><b>" + tarefasHoje.length + "</b></div>" +
-      "<div><small>Leads em andamento</small><b>" + leadsAtivos + "</b></div>" +
-      "<div><small>Clientes ativos</small><b>" + E.clientes.filter(function (c) { return c.situacao === "cliente"; }).length + "</b></div>";
-
-    var ulT = $("#hoje-tarefas");
-    ulT.innerHTML = tarefasHoje.length ? tarefasHoje.map(linhaTarefa).join("") : '<li class="vazio">Nenhuma tarefa pendente. 🎉</li>';
-    ligaTarefas(ulT);
-
-    var ulP = $("#hoje-prazos");
-    ulP.innerHTML = prazos.length ? prazos.map(function (c) {
-      var falta = diasAte(c.data);
-      return '<li><span class="pilula ' + corTipoCal(c.tipo) + '">' + legendaTipoCal(c.tipo) + '</span><div>' + esc(c.titulo) + '</div><span class="dir-item fraco">' + (falta === 0 ? "hoje" : falta === 1 ? "amanhã" : fmtData(c.data)) + "</span></li>";
-    }).join("") : '<li class="vazio">Sem prazos próximos.</li>';
+  Promise.all([
+    buscaTudo("found_tarefas", "data"),
+    buscaTudo("found_clientes", "criado_em", false),
+    buscaTudo("found_calendario", "data"),
+    buscaTudo("found_projetos", "criado_em", false),
+    buscaTudo("found_visitas", "data")
+  ]).then(function (r) {
+    E.tarefas = r[0]; E.clientes = r[1]; E.calendario = r[2]; E.projetos = r[3]; E.visitas = r[4];
+    desenhaHoje();
   });
+
+  $("#hoje-tar-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var titulo = $("#hoje-tar-novo").value.trim();
+    if (!titulo) return;
+    salvar("found_tarefas", { titulo: titulo, data: hojeISO() }).then(function (ok) { if (ok) carregaHoje(); });
+  });
+}
+function desenhaHoje() {
+  var hoje = hojeISO();
+  var tarefasHoje = E.tarefas.filter(function (t) { return !t.feita && (!t.data || t.data <= hoje); });
+  var agendaHoje = E.calendario.filter(function (c) { return c.data === hoje; });
+  var seteDiasAtras = new Date(); seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+  var leadsNovos = E.clientes.filter(function (c) { return c.situacao === "lead" && c.criado_em && new Date(c.criado_em) >= seteDiasAtras; })
+    .sort(function (a, b) { return String(b.criado_em || "").localeCompare(String(a.criado_em || "")); });
+  var prazosChegando = E.projetos.filter(function (p) { return p.prazo && p.status !== "Entregue" && diasAte(p.prazo) <= 3; })
+    .sort(function (a, b) { return a.prazo < b.prazo ? -1 : 1; });
+  var visitasHoje = E.visitas.filter(function (v) { return v.data && isoLocal(new Date(v.data)) === hoje; }).length;
+
+  $("#hoje-numeros").innerHTML =
+    "<div><small>Tarefas pra hoje</small><b>" + tarefasHoje.length + "</b></div>" +
+    "<div><small>Na agenda hoje</small><b>" + agendaHoje.length + "</b></div>" +
+    "<div><small>Prazos em até 3 dias</small><b>" + prazosChegando.length + "</b></div>" +
+    "<div><small>Leads novos (7 dias)</small><b>" + leadsNovos.length + "</b></div>" +
+    "<div><small>Visitas hoje</small><b>" + visitasHoje + "</b></div>";
+
+  var ulT = $("#hoje-tarefas");
+  ulT.innerHTML = tarefasHoje.length ? tarefasHoje.map(linhaTarefa).join("") : '<li class="vazio">Nenhuma tarefa com prazo pra hoje.</li>';
+  ligaTarefas(ulT);
+
+  var ulA = $("#hoje-agenda");
+  ulA.innerHTML = agendaHoje.length ? agendaHoje.map(function (c) {
+    return '<li><span class="pilula ' + corTipoCal(c.tipo) + '">' + legendaTipoCal(c.tipo) + '</span><div>' + esc(c.titulo) + "</div></li>";
+  }).join("") : '<li class="vazio">Nada marcado no calendário pra hoje.</li>';
+
+  var ulP = $("#hoje-prazos");
+  ulP.innerHTML = prazosChegando.length ? prazosChegando.map(function (p) {
+    var falta = diasAte(p.prazo);
+    var quando = falta < 0 ? '<span class="prazo-tag atraso">atrasada ' + (-falta) + (falta === -1 ? " dia" : " dias") + '</span>' : falta === 0 ? '<span class="prazo-tag perto">hoje</span>' : falta === 1 ? '<span class="prazo-tag perto">amanhã</span>' : fmtData(p.prazo);
+    return '<li><div>' + esc(p.titulo) + (p.cliente_id ? ' · <span class="fraco">' + esc(nomeCliente(p.cliente_id)) + "</span>" : "") + '</div><span class="dir-item">' + quando + "</span></li>";
+  }).join("") : '<li class="vazio">Nenhum prazo chegando.</li>';
+
+  var ulL = $("#hoje-leads");
+  ulL.innerHTML = leadsNovos.length ? leadsNovos.map(function (c) {
+    return '<li><div>' + esc(semEx(c.nome)) + (c.origem ? ' · <span class="fraco">' + esc(c.origem) + "</span>" : "") + "</div></li>";
+  }).join("") : '<li class="vazio">Nenhum lead novo nos últimos 7 dias. Quando alguém mandar o formulário do site, aparece aqui.</li>';
 }
 function linhaTarefa(t) {
   return '<li class="' + (t.feita ? "feita" : "") + '" data-id="' + t.id + '"><input type="checkbox" ' + (t.feita ? "checked" : "") + '><button type="button" class="tarefa-t">' + esc(t.titulo) + "</button></li>";
@@ -1005,11 +1058,30 @@ function abreModalCalendario(id, diaPreenchido) {
 /* =========================================================
    10) ABA TAREFAS
    ========================================================= */
+var tarFiltro = "pendentes";
 function carregaTarefas() {
   var raiz = $("#aba-tarefas");
   raiz.innerHTML =
     '<section class="card bloco">' +
-    '<form class="rapido sem-borda" id="tar-form"><input type="text" id="tar-novo" placeholder="Nova tarefa e tecle Enter" required><input type="date" id="tar-data"><button class="btn escuro" type="submit">' + icone("mais") + "Adicionar</button></form>" +
+    '<form class="rapido sem-borda" id="tar-form">' +
+    '<input type="text" id="tar-novo" placeholder="Escreva uma tarefa e aperte Enter" required>' +
+    '<select class="filtro" id="tar-prioridade">' +
+    '<option value="normal" selected>Prioridade normal</option>' +
+    '<option value="alta">Prioridade alta</option>' +
+    '<option value="baixa">Prioridade baixa</option>' +
+    '</select>' +
+    '<input type="date" id="tar-data">' +
+    '<button class="btn escuro" type="submit">' + icone("mais") + "Adicionar</button>" +
+    '</form>' +
+    '<div class="bloco-topo">' +
+    '<div class="seg" id="tar-filtro-seg">' +
+    [["pendentes", "Pendentes"], ["hoje", "Pra hoje"], ["feitas", "Feitas"], ["todas", "Todas"]].map(function (f) {
+      return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (f[0] === tarFiltro) + '">' + f[1] + "</button>";
+    }).join("") +
+    '</div>' +
+    '<span class="contagem" id="tar-contagem"></span>' +
+    '<div class="dir"><button class="btn perigo" type="button" id="tar-limpar">Limpar feitas</button></div>' +
+    '</div>' +
     '<ul class="lista-tarefas" id="tar-corpo"></ul>' +
     "</section>";
 
@@ -1019,20 +1091,58 @@ function carregaTarefas() {
     ev.preventDefault();
     var titulo = $("#tar-novo").value.trim();
     if (!titulo) return;
-    salvar("found_tarefas", { titulo: titulo, data: $("#tar-data").value || null }).then(function (ok) {
+    salvar("found_tarefas", { titulo: titulo, data: $("#tar-data").value || null, prioridade: $("#tar-prioridade").value }).then(function (ok) {
       if (ok) { $("#tar-novo").value = ""; $("#tar-data").value = ""; carregaTarefas(); }
     });
   });
+
+  $("#tar-filtro-seg").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    tarFiltro = b.dataset.f;
+    $$("#tar-filtro-seg button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    renderizaTarefas();
+  });
+
+  $("#tar-limpar").addEventListener("click", function () {
+    var feitas = E.tarefas.filter(function (t) { return t.feita; });
+    if (!feitas.length) return;
+    if (!confirm("Apagar " + feitas.length + (feitas.length === 1 ? " tarefa concluída" : " tarefas concluídas") + "? Essa ação não pode ser desfeita.")) return;
+    Promise.all(feitas.map(function (t) { return apagar("found_tarefas", t.id); })).then(function () { carregaTarefas(); });
+  });
 }
 function renderizaTarefas() {
+  var hoje = hojeISO();
+  var lista = E.tarefas.filter(function (t) {
+    if (tarFiltro === "pendentes") return !t.feita;
+    if (tarFiltro === "hoje") return !t.feita && t.data && t.data <= hoje;
+    if (tarFiltro === "feitas") return t.feita;
+    return true;
+  });
+  var ordemPrio = { alta: 0, normal: 1, baixa: 2 };
+  lista = lista.slice().sort(function (a, b) {
+    if (!!a.feita !== !!b.feita) return a.feita ? 1 : -1;
+    var pa = ordemPrio[a.prioridade] != null ? ordemPrio[a.prioridade] : 1;
+    var pb = ordemPrio[b.prioridade] != null ? ordemPrio[b.prioridade] : 1;
+    if (pa !== pb) return pa - pb;
+    return (a.data || "9999").localeCompare(b.data || "9999");
+  });
+  var pendentesTotal = E.tarefas.filter(function (t) { return !t.feita; }).length;
+  $("#tar-contagem").textContent = pendentesTotal + (pendentesTotal === 1 ? " pendente" : " pendentes");
+
   var corpo = $("#tar-corpo");
-  if (!E.tarefas.length) { corpo.innerHTML = '<li class="vazio">Nenhuma tarefa ainda.</li>'; return; }
-  var ordenadas = E.tarefas.slice().sort(function (a, b) { return (a.feita - b.feita) || (a.data || "").localeCompare(b.data || ""); });
-  corpo.innerHTML = ordenadas.map(linhaTarefaCompleta).join("");
+  corpo.innerHTML = lista.length ? lista.map(linhaTarefaCompleta).join("") : '<li class="vazio">Nenhuma tarefa aqui.</li>';
   ligaTarefas(corpo, true);
 }
 function linhaTarefaCompleta(t) {
-  return '<li class="' + (t.feita ? "feita" : "") + '" data-id="' + t.id + '"><input type="checkbox" ' + (t.feita ? "checked" : "") + '><button type="button" class="tarefa-t">' + esc(t.titulo) + (t.data ? ' <span class="fraco" style="font-weight:600">· ' + fmtData(t.data) + "</span>" : "") + '</button><button class="icone" type="button" data-apagar="' + t.id + '" aria-label="Apagar">' + icone("lixo") + "</button></li>";
+  var falta = t.data ? diasAte(t.data) : null;
+  var quando = "";
+  if (t.data) {
+    quando = (!t.feita && falta < 0) ? '<span class="prazo-tag atraso">atrasada ' + (-falta) + (falta === -1 ? " dia" : " dias") + "</span>" : fmtData(t.data);
+  }
+  return '<li class="' + (t.feita ? "feita" : "") + '" data-id="' + t.id + '"><input type="checkbox" ' + (t.feita ? "checked" : "") +
+    '><button type="button" class="tarefa-t">' + esc(t.titulo) + (t.prioridade === "alta" && !t.feita ? ' <span class="pilula p-verm">Alta</span>' : "") + "</button>" +
+    '<span class="dir-item fraco">' + quando + "</span>" +
+    '<button class="icone" type="button" data-apagar="' + t.id + '" aria-label="Apagar">' + icone("lixo") + "</button></li>";
 }
 function ligaTarefas(raiz, comApagar) {
   $$("li[data-id] input[type=checkbox]", raiz).forEach(function (cb) {

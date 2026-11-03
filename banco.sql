@@ -87,12 +87,18 @@ create table if not exists public.found_projetos (
 
 -- FOUND_TAREFAS: a lista de afazeres do dia a dia da agência.
 create table if not exists public.found_tarefas (
-  id        uuid primary key default gen_random_uuid(),
-  titulo    text not null,
-  feita     boolean not null default false,
-  data      date,
-  criado_em timestamptz not null default now()
+  id         uuid primary key default gen_random_uuid(),
+  titulo     text not null,
+  feita      boolean not null default false,
+  data       date,
+  prioridade text not null default 'normal',
+  criado_em  timestamptz not null default now()
 );
+-- Garante a coluna e a trava em quem já tinha criado a tabela antes dessa mudança.
+alter table public.found_tarefas add column if not exists prioridade text not null default 'normal';
+alter table public.found_tarefas drop constraint if exists found_tarefas_prioridade_check;
+alter table public.found_tarefas add constraint found_tarefas_prioridade_check
+  check (prioridade in ('alta','normal','baixa'));
 
 -- FOUND_CHECKLIST_ITENS: passos de processos internos (ex.: onboarding de
 -- cliente, entrega mensal), organizados por categoria.
