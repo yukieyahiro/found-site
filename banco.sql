@@ -50,6 +50,15 @@ create table if not exists public.found_clientes (
 -- Garante a coluna em quem já tinha criado a tabela antes dessa mudança.
 alter table public.found_clientes add column if not exists ultimo_contato date;
 
+-- Simplificação das situações: "Proposta enviada" e "Pausado" viraram
+-- "Conversando" e "Parada". Primeiro remapeia quem já tinha dado esses
+-- valores, depois troca a trava para aceitar só os 4 novos.
+update public.found_clientes set situacao = 'conversando' where situacao = 'proposta';
+update public.found_clientes set situacao = 'parada' where situacao = 'pausado';
+alter table public.found_clientes drop constraint if exists found_clientes_situacao_check;
+alter table public.found_clientes add constraint found_clientes_situacao_check
+  check (situacao in ('lead','conversando','cliente','parada'));
+
 -- FOUND_CALENDARIO: agenda de reuniões, gravações, postagens e prazos.
 create table if not exists public.found_calendario (
   id         uuid primary key default gen_random_uuid(),
