@@ -447,7 +447,7 @@ function mostraFormNovaSenha(sessao) {
 /* =========================================================
    2) LISTAS FIXAS DO PAINEL (pode editar)
    ========================================================= */
-var SITUACOES = [["lead", "Lead", "p-azul"], ["conversando", "Conversando", "p-ambar"], ["proposta", "Proposta enviada", "p-lilas"], ["cliente", "Cliente ativo", "p-verde"], ["pausado", "Pausado", "p-cinza"]];
+var SITUACOES = [["lead", "Lead", "p-azul"], ["conversando", "Conversando", "p-ambar"], ["cliente", "Cliente", "p-verde"], ["parada", "Parada", "p-cinza"]];
 var TIPOS_CAL = [["gravar", "Gravar"], ["editar", "Editar"], ["postar", "Postar"], ["reuniao", "Reunião"], ["prazo", "Prazo"]];
 var STATUS_PROJ = ["Briefing", "Diagnóstico", "Estratégia", "Produção", "Revisão", "Aprovado", "Entregue"];
 var STATUS_COR = { "Briefing": "p-cinza", "Diagnóstico": "p-lilas", "Estratégia": "p-azul", "Produção": "p-ambar", "Revisão": "p-rosa", "Aprovado": "p-verde", "Entregue": "p-lima" };
@@ -524,6 +524,18 @@ function avisa(texto, tipo) {
   d.querySelector("button").addEventListener("click", function () { d.remove(); delete avisosVistos[texto]; });
   $("#avisos").appendChild(d);
 }
+
+/* Rede de segurança: se algo quebrar dentro de uma promessa (ex.: depois
+   que os dados chegam do banco, numa aba) ou em qualquer outro lugar que
+   o try/catch da aba não alcance, avisa em vez de deixar o painel travado
+   ou em branco sem explicação. */
+window.addEventListener("unhandledrejection", function (ev) {
+  avisa("Algo não carregou direito agora (" + ((ev.reason && ev.reason.message) || ev.reason || "erro desconhecido") + "). Tenta recarregar a página; se continuar, veja se alguma tabela do banco.sql está faltando.", "erro");
+});
+window.addEventListener("error", function (ev) {
+  if (document.body.classList.contains("travado")) return; // erro antes do portão liberar: deixa a mensagem do portão
+  avisa("Algo não carregou direito agora (" + (ev.message || "erro desconhecido") + "). Tenta recarregar a página.", "erro");
+});
 function explicaErro(tabela, erro) {
   var c = (erro && erro.code) || "", m = (erro && (erro.message || String(erro))) || "";
   if (/jwt|token.*expired|not authenticated/i.test(m)) { location.replace("../login/"); return ""; }
@@ -557,7 +569,16 @@ function mostraAba(nome) {
   $("#titulo-aba").textContent = ABAS[nome].titulo;
   $("#sub-aba").textContent = ABAS[nome].sub;
   fechaMenu();
-  ABAS[nome].carregar();
+  // Se essa aba quebrar por qualquer motivo (tabela/campo faltando, erro
+  // de programação etc.), avisa e mantém o resto do painel funcionando —
+  // nunca deixa o admin inteiro em branco por causa de uma aba só.
+  try {
+    ABAS[nome].carregar();
+  } catch (e) {
+    avisa("A aba \"" + ABAS[nome].titulo + "\" não carregou agora (" + (e && e.message || e) + "). As outras abas continuam funcionando normalmente.", "erro");
+    var raiz = $("#aba-" + nome);
+    if (raiz && !raiz.innerHTML.trim()) raiz.innerHTML = '<div class="card bloco"><p class="vazio">Não consegui abrir esta aba agora. Veja o aviso no topo.</p></div>';
+  }
 }
 window.addEventListener("hashchange", function () { mostraAba(abaAtual()); });
 
