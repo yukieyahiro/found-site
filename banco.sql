@@ -94,6 +94,55 @@ create table if not exists public.found_checklist_itens (
   criado_em  timestamptz not null default now()
 );
 
+-- FOUND_VISITAS: uma linha por visita ao site da Found, pro Dashboard.
+-- Guarda só a data, a página e de onde a pessoa veio. Nada pessoal.
+create table if not exists public.found_visitas (
+  id      uuid primary key default gen_random_uuid(),
+  data    timestamptz not null default now(),
+  pagina  text,
+  origem  text
+);
+create index if not exists found_visitas_data_idx on public.found_visitas (data desc);
+
+-- FOUND_IDEIAS: quadro de ideias de conteúdo, da ideia até o post.
+-- Pode (ou não) estar vinculada a um cliente.
+create table if not exists public.found_ideias (
+  id         uuid primary key default gen_random_uuid(),
+  cliente_id uuid references public.found_clientes(id) on delete set null,
+  titulo     text not null,
+  formato    text,
+  gancho     text,
+  status     text not null default 'ideia' check (status in ('ideia','roteiro','produzido','postado')),
+  obs        text,
+  criado_em  timestamptz not null default now()
+);
+
+-- FOUND_RADAR: novidades de marketing que valem guardar (tendência,
+-- formato novo, plataforma, oportunidade, caso de sucesso de outra marca).
+create table if not exists public.found_radar (
+  id         uuid primary key default gen_random_uuid(),
+  titulo     text not null,
+  categoria  text not null default 'Tendência'
+             check (categoria in ('Tendência', 'Plataforma', 'Oportunidade', 'Caso de sucesso', 'Outro')),
+  link       text,
+  nota       text,
+  status     text not null default 'nova'
+             check (status in ('nova', 'testar', 'usei', 'arquivada')),
+  fixada     boolean not null default false,
+  criado_em  timestamptz not null default now()
+);
+
+-- FOUND_LINKS: os links e ferramentas de trabalho da agência.
+create table if not exists public.found_links (
+  id         uuid primary key default gen_random_uuid(),
+  titulo     text not null,
+  url        text not null,
+  categoria  text not null default 'Ferramentas',
+  descricao  text,
+  favorito   boolean not null default false,
+  criado_em  timestamptz not null default now()
+);
+
 
 -- ---------------------------------------------------------------------
 -- 3) AS TRANCAS (RLS) — só a dona lê e escreve, ninguém mais
@@ -103,6 +152,10 @@ alter table public.found_calendario      enable row level security;
 alter table public.found_projetos        enable row level security;
 alter table public.found_tarefas         enable row level security;
 alter table public.found_checklist_itens enable row level security;
+alter table public.found_visitas         enable row level security;
+alter table public.found_ideias          enable row level security;
+alter table public.found_radar           enable row level security;
+alter table public.found_links           enable row level security;
 
 drop policy if exists "dona_tudo_found_clientes" on public.found_clientes;
 create policy "dona_tudo_found_clientes" on public.found_clientes for all using (public.e_a_dona()) with check (public.e_a_dona());
@@ -118,6 +171,36 @@ create policy "dona_tudo_found_tarefas" on public.found_tarefas for all using (p
 
 drop policy if exists "dona_tudo_found_checklist" on public.found_checklist_itens;
 create policy "dona_tudo_found_checklist" on public.found_checklist_itens for all using (public.e_a_dona()) with check (public.e_a_dona());
+
+drop policy if exists "dona_tudo_found_visitas" on public.found_visitas;
+create policy "dona_tudo_found_visitas" on public.found_visitas for all to authenticated using (public.e_a_dona()) with check (public.e_a_dona());
+
+drop policy if exists "dona_tudo_found_ideias" on public.found_ideias;
+create policy "dona_tudo_found_ideias" on public.found_ideias for all using (public.e_a_dona()) with check (public.e_a_dona());
+
+drop policy if exists "dona_tudo_found_radar" on public.found_radar;
+create policy "dona_tudo_found_radar" on public.found_radar for all using (public.e_a_dona()) with check (public.e_a_dona());
+
+drop policy if exists "dona_tudo_found_links" on public.found_links;
+create policy "dona_tudo_found_links" on public.found_links for all using (public.e_a_dona()) with check (public.e_a_dona());
+
+
+-- ---------------------------------------------------------------------
+-- EXCEÇÃO: O SITE DA FOUND PODE REGISTRAR UMA VISITA
+-- Qualquer pessoa pode INSERIR uma visita (pra contar no Dashboard).
+-- Ler, só a dona.
+-- ---------------------------------------------------------------------
+drop policy if exists "site registra visita found" on public.found_visitas;
+create policy "site registra visita found" on public.found_visitas
+  for insert to anon, authenticated
+  with check (
+    char_length(coalesce(pagina, '')) <= 200
+    and char_length(coalesce(origem, '')) <= 120
+  );
+
+revoke all on public.found_visitas from anon;
+grant insert on public.found_visitas to anon;
+grant select, insert, update, delete on public.found_visitas to authenticated;
 
 
 -- ---------------------------------------------------------------------

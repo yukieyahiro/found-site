@@ -1441,5 +1441,35 @@ contactForm.addEventListener("submit", async (e) => {
 initReveal();
 initCounters();
 </script>
+
+<!-- Rastreio simples de visitas, pro Dashboard do painel interno. Só conta
+     a data, a página e de onde a pessoa veio — nada pessoal, sem cookies
+     de terceiros. Se o Supabase não carregar (sem internet, bloqueado),
+     a página inteira continua funcionando normalmente. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/banco.js"></script>
+<script>
+(function registraVisita() {
+  var banco = window.banco;
+  if (!banco) return;
+  var CHAVE_VISITA = "found_visita_registrada";
+  try { if (sessionStorage.getItem(CHAVE_VISITA) === location.pathname) return; } catch (e) {}
+  var nomes = [[/instagram/, "Instagram"], [/tiktok/, "TikTok"], [/google\./, "Google"], [/facebook|fb\.com|fb\.me/, "Facebook"],
+    [/youtu/, "YouTube"], [/linkedin|lnkd/, "LinkedIn"], [/whatsapp|wa\.me/, "WhatsApp"], [/(^|\.)t\.co$|twitter|(^|\.)x\.com/, "X"],
+    [/pinterest/, "Pinterest"], [/bing\./, "Bing"]];
+  var p = new URLSearchParams(location.search);
+  var origem = p.get("utm_source") || p.get("origem") || p.get("ref") || "";
+  if (!origem && document.referrer) {
+    try { var h = new URL(document.referrer).hostname; if (h !== location.hostname) origem = h.replace(/^(www|m|l|lm)\./, ""); } catch (e) {}
+  }
+  var achado = nomes.find(function (n) { return n[0].test(origem.toLowerCase()); });
+  origem = achado ? achado[1] : (origem || "direto");
+  banco.auth.getSession().then(function (r) {
+    if (r && r.data && r.data.session) return; // não conta quando a dona está logada no painel
+    return banco.from("found_visitas").insert({ pagina: location.pathname.slice(0, 200), origem: origem.slice(0, 120) })
+      .then(function (res) { if (!res.error) { try { sessionStorage.setItem(CHAVE_VISITA, location.pathname); } catch (e) {} } });
+  }).catch(function () {});
+})();
+</script>
 </body>
 </html>
