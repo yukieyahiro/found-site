@@ -34,18 +34,21 @@ $$;
 
 -- FOUND_CLIENTES: a base de leads, conversas e clientes ativos da agência.
 create table if not exists public.found_clientes (
-  id           uuid primary key default gen_random_uuid(),
-  nome         text not null,
-  instagram    text,
-  whatsapp     text,
-  email        text,
-  situacao     text not null default 'lead' check (situacao in ('lead','conversando','proposta','cliente','pausado')),
-  servico      text,
-  valor_mensal numeric,
-  origem       text,
-  nota         text,
-  criado_em    timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  nome           text not null,
+  instagram      text,
+  whatsapp       text,
+  email          text,
+  situacao       text not null default 'lead' check (situacao in ('lead','conversando','proposta','cliente','pausado')),
+  servico        text,
+  valor_mensal   numeric,
+  origem         text,
+  nota           text,
+  ultimo_contato date,
+  criado_em      timestamptz not null default now()
 );
+-- Garante a coluna em quem já tinha criado a tabela antes dessa mudança.
+alter table public.found_clientes add column if not exists ultimo_contato date;
 
 -- FOUND_CALENDARIO: agenda de reuniões, gravações, postagens e prazos.
 create table if not exists public.found_calendario (
@@ -196,6 +199,23 @@ create policy "site registra visita found" on public.found_visitas
   with check (
     char_length(coalesce(pagina, '')) <= 200
     and char_length(coalesce(origem, '')) <= 120
+  );
+
+
+-- ---------------------------------------------------------------------
+-- EXCEÇÃO: O FORMULÁRIO DO SITE PODE CRIAR UM LEAD
+-- Qualquer pessoa pode INSERIR, mas só como "lead" e com textos de
+-- tamanho normal (evita alguém mandar um livro inteiro). Ela NÃO
+-- consegue ler, editar nem apagar nada depois.
+-- ---------------------------------------------------------------------
+drop policy if exists "site cria lead found" on public.found_clientes;
+create policy "site cria lead found" on public.found_clientes
+  for insert to anon, authenticated
+  with check (
+    situacao = 'lead'
+    and char_length(nome) between 1 and 120
+    and char_length(coalesce(email, '')) <= 160
+    and char_length(coalesce(nota, '')) <= 3000
   );
 
 revoke all on public.found_visitas from anon;
