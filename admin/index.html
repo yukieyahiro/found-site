@@ -468,7 +468,7 @@ function carregaHoje() {
   var d = new Date();
   $("#data-hoje").textContent = d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
-  Promise.all([buscaTudo("tarefas", "data"), buscaTudo("clientes"), buscaTudo("calendario", "data")]).then(function (r) {
+  Promise.all([buscaTudo("found_tarefas", "data"), buscaTudo("found_clientes"), buscaTudo("found_calendario", "data")]).then(function (r) {
     E.tarefas = r[0]; E.clientes = r[1]; E.calendario = r[2];
     var tarefasHoje = E.tarefas.filter(function (t) { return !t.feita && (!t.data || t.data <= hojeISO()); });
     var leadsAtivos = E.clientes.filter(function (c) { return ["lead", "conversando", "proposta"].indexOf(c.situacao) > -1; }).length;
@@ -511,7 +511,7 @@ function carregaClientes() {
     '<div class="tabela-rola"><table><thead><tr><th>Nome</th><th>Situação</th><th>Serviço</th><th class="num">Valor mensal</th><th>Contato</th><th class="acoes"></th></tr></thead><tbody id="cli-corpo"></tbody></table></div>' +
     '</section>';
 
-  buscaTudo("clientes", "criado_em", false).then(function (lista) {
+  buscaTudo("found_clientes", "criado_em", false).then(function (lista) {
     E.clientes = lista;
     renderizaClientes();
   });
@@ -547,7 +547,7 @@ function renderizaClientes() {
     tr.addEventListener("click", function (ev) { if (ev.target.closest("button, a")) return; abreModalCliente(tr.dataset.id); });
   });
   $$("#cli-corpo [data-editar]").forEach(function (b) { b.addEventListener("click", function () { abreModalCliente(b.dataset.editar); }); });
-  $$("#cli-corpo [data-apagar]").forEach(function (b) { b.addEventListener("click", function () { confirmaApagar("clientes", b.dataset.apagar, carregaClientes); }); });
+  $$("#cli-corpo [data-apagar]").forEach(function (b) { b.addEventListener("click", function () { confirmaApagar("found_clientes", b.dataset.apagar, carregaClientes); }); });
 }
 function abreModalCliente(id) {
   var c = id ? E.clientes.find(function (x) { return x.id === id; }) : null;
@@ -566,7 +566,7 @@ function abreModalCliente(id) {
   abreModal({
     titulo: c ? "Editar cliente" : "Novo cliente",
     corpo: corpo,
-    excluir: c ? function () { confirmaApagar("clientes", c.id, function () { fechaModal(); carregaClientes(); }); } : null,
+    excluir: c ? function () { confirmaApagar("found_clientes", c.id, function () { fechaModal(); carregaClientes(); }); } : null,
     salvar: function () {
       var nome = $("#f-nome").value.trim();
       if (!nome) return "Informe o nome do cliente.";
@@ -581,7 +581,7 @@ function abreModalCliente(id) {
         email: $("#f-email").value.trim() || null,
         nota: $("#f-nota").value.trim() || null
       };
-      return salvar("clientes", linha, c ? c.id : null).then(function (ok) { if (ok) { fechaModal(); carregaClientes(); } return ok ? "" : "Não foi possível salvar."; });
+      return salvar("found_clientes", linha, c ? c.id : null).then(function (ok) { if (ok) { fechaModal(); carregaClientes(); } return ok ? "" : "Não foi possível salvar."; });
     }
   });
 }
@@ -600,7 +600,7 @@ function carregaProjetos() {
     '<div class="tabela-rola"><table><thead><tr><th></th><th>Projeto</th><th>Cliente</th><th>Status</th><th>Prazo</th><th class="num">Valor</th><th class="acoes"></th></tr></thead><tbody id="proj-corpo"></tbody></table></div>' +
     '</section>';
 
-  Promise.all([buscaTudo("projetos", "criado_em", false), buscaTudo("clientes")]).then(function (r) {
+  Promise.all([buscaTudo("found_projetos", "criado_em", false), buscaTudo("found_clientes")]).then(function (r) {
     E.projetos = r[0]; if (!E.clientes.length) E.clientes = r[1];
     renderizaProjetos();
   });
@@ -637,12 +637,12 @@ function renderizaProjetos() {
     tr.addEventListener("click", function (ev) { if (ev.target.closest("button")) return; abreModalProjeto(tr.dataset.id); });
   });
   $$("#proj-corpo [data-editar]").forEach(function (b) { b.addEventListener("click", function (ev) { ev.stopPropagation(); abreModalProjeto(b.dataset.editar); }); });
-  $$("#proj-corpo [data-apagar]").forEach(function (b) { b.addEventListener("click", function (ev) { ev.stopPropagation(); confirmaApagar("projetos", b.dataset.apagar, carregaProjetos); }); });
+  $$("#proj-corpo [data-apagar]").forEach(function (b) { b.addEventListener("click", function (ev) { ev.stopPropagation(); confirmaApagar("found_projetos", b.dataset.apagar, carregaProjetos); }); });
   $$("#proj-corpo [data-fav]").forEach(function (b) {
     b.addEventListener("click", function (ev) {
       ev.stopPropagation();
       var p = E.projetos.find(function (x) { return x.id === b.dataset.fav; });
-      salvar("projetos", { favorito: !p.favorito }, p.id).then(function (ok) { if (ok) { p.favorito = !p.favorito; renderizaProjetos(); } });
+      salvar("found_projetos", { favorito: !p.favorito }, p.id).then(function (ok) { if (ok) { p.favorito = !p.favorito; renderizaProjetos(); } });
     });
   });
 }
@@ -662,7 +662,7 @@ function abreModalProjeto(id) {
   abreModal({
     titulo: p ? "Editar projeto" : "Novo projeto",
     corpo: corpo,
-    excluir: p ? function () { confirmaApagar("projetos", p.id, function () { fechaModal(); carregaProjetos(); }); } : null,
+    excluir: p ? function () { confirmaApagar("found_projetos", p.id, function () { fechaModal(); carregaProjetos(); }); } : null,
     salvar: function () {
       var titulo = $("#f-titulo").value.trim();
       if (!titulo) return "Informe o título do projeto.";
@@ -675,7 +675,7 @@ function abreModalProjeto(id) {
         valor: $("#f-valorp").value ? Number($("#f-valorp").value) : null,
         nota: $("#f-notap").value.trim() || null
       };
-      return salvar("projetos", linha, p ? p.id : null).then(function (ok) { if (ok) { fechaModal(); carregaProjetos(); } return ok ? "" : "Não foi possível salvar."; });
+      return salvar("found_projetos", linha, p ? p.id : null).then(function (ok) { if (ok) { fechaModal(); carregaProjetos(); } return ok ? "" : "Não foi possível salvar."; });
     }
   });
 }
@@ -697,7 +697,7 @@ function carregaCalendario() {
     '<div class="legenda-cal">' + TIPOS_CAL.map(function (t) { return '<span><i class="t-' + t[0] + '"></i>' + t[1] + "</span>"; }).join("") + "</div>" +
     "</section>";
 
-  buscaTudo("calendario", "data").then(function (lista) { E.calendario = lista; renderizaCalendario(); });
+  buscaTudo("found_calendario", "data").then(function (lista) { E.calendario = lista; renderizaCalendario(); });
 
   $("#cal-ant").addEventListener("click", function () { calMes.setMonth(calMes.getMonth() - 1); renderizaCalendario(); });
   $("#cal-prox").addEventListener("click", function () { calMes.setMonth(calMes.getMonth() + 1); renderizaCalendario(); });
@@ -754,7 +754,7 @@ function abreModalCalendario(id, diaPreenchido) {
   abreModal({
     titulo: c ? "Editar compromisso" : "Novo compromisso",
     corpo: corpo,
-    excluir: c ? function () { confirmaApagar("calendario", c.id, function () { fechaModal(); carregaCalendario(); }); } : null,
+    excluir: c ? function () { confirmaApagar("found_calendario", c.id, function () { fechaModal(); carregaCalendario(); }); } : null,
     salvar: function () {
       var titulo = $("#f-ctitulo").value.trim();
       if (!titulo) return "Informe o título.";
@@ -762,7 +762,7 @@ function abreModalCalendario(id, diaPreenchido) {
       if (!data) return "Informe a data.";
       var linha = { titulo: titulo, tipo: $("#f-ctipo").value, data: data, cliente_id: $("#f-ccliente").value || null, nota: $("#f-cnota").value.trim() || null };
       if (c) linha.feito = $("#f-cfeito").checked;
-      return salvar("calendario", linha, c ? c.id : null).then(function (ok) { if (ok) { fechaModal(); carregaCalendario(); } return ok ? "" : "Não foi possível salvar."; });
+      return salvar("found_calendario", linha, c ? c.id : null).then(function (ok) { if (ok) { fechaModal(); carregaCalendario(); } return ok ? "" : "Não foi possível salvar."; });
     }
   });
 }
@@ -778,13 +778,13 @@ function carregaTarefas() {
     '<ul class="lista-tarefas" id="tar-corpo"></ul>' +
     "</section>";
 
-  buscaTudo("tarefas", "criado_em", false).then(function (lista) { E.tarefas = lista; renderizaTarefas(); });
+  buscaTudo("found_tarefas", "criado_em", false).then(function (lista) { E.tarefas = lista; renderizaTarefas(); });
 
   $("#tar-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
     var titulo = $("#tar-novo").value.trim();
     if (!titulo) return;
-    salvar("tarefas", { titulo: titulo, data: $("#tar-data").value || null }).then(function (ok) {
+    salvar("found_tarefas", { titulo: titulo, data: $("#tar-data").value || null }).then(function (ok) {
       if (ok) { $("#tar-novo").value = ""; $("#tar-data").value = ""; carregaTarefas(); }
     });
   });
@@ -804,14 +804,14 @@ function ligaTarefas(raiz, comApagar) {
     cb.addEventListener("change", function () {
       var li = cb.closest("li");
       var t = E.tarefas.find(function (x) { return x.id === li.dataset.id; });
-      salvar("tarefas", { feita: cb.checked }, li.dataset.id).then(function (ok) {
+      salvar("found_tarefas", { feita: cb.checked }, li.dataset.id).then(function (ok) {
         if (ok) { if (t) t.feita = cb.checked; li.classList.toggle("feita", cb.checked); if (comApagar) renderizaTarefas(); }
       });
     });
   });
   if (comApagar) {
     $$("li[data-id] [data-apagar]", raiz).forEach(function (b) {
-      b.addEventListener("click", function () { confirmaApagar("tarefas", b.dataset.apagar, carregaTarefas); });
+      b.addEventListener("click", function () { confirmaApagar("found_tarefas", b.dataset.apagar, carregaTarefas); });
     });
   }
 }
@@ -822,7 +822,7 @@ function ligaTarefas(raiz, comApagar) {
 function carregaChecklist() {
   var raiz = $("#aba-checklist");
   raiz.innerHTML = '<div class="geral card"><b id="ck-geral-txt"></b><div class="progresso"><i id="ck-geral-barra"></i></div></div><div id="ck-secoes"></div>';
-  buscaTudo("checklist_itens", "ordem").then(function (lista) { E.checklist = lista; renderizaChecklist(); });
+  buscaTudo("found_checklist_itens", "ordem").then(function (lista) { E.checklist = lista; renderizaChecklist(); });
 }
 function renderizaChecklist() {
   var categorias = [];
@@ -848,7 +848,7 @@ function renderizaChecklist() {
     cb.addEventListener("change", function () {
       var label = cb.closest(".item-ck");
       var item = E.checklist.find(function (x) { return x.id === label.dataset.id; });
-      salvar("checklist_itens", { feito: cb.checked }, label.dataset.id).then(function (ok) { if (ok) { item.feito = cb.checked; renderizaChecklist(); } });
+      salvar("found_checklist_itens", { feito: cb.checked }, label.dataset.id).then(function (ok) { if (ok) { item.feito = cb.checked; renderizaChecklist(); } });
     });
   });
 }
