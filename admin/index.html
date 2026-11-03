@@ -322,24 +322,19 @@ details.sec[open] > summary{border-bottom:1px solid var(--line-2)}
   var msg = document.getElementById("portao");
   if (!banco) { msg.textContent = "Não consegui carregar a ligação com o banco. Confira js/banco.js (preencha SUPABASE_URL e SUPABASE_CHAVE) e a internet."; return; }
 
-  var jaTratado = false;
-  banco.auth.onAuthStateChange(function (evento, sessao) {
-    if (evento === "PASSWORD_RECOVERY") {
-      jaTratado = true;
-      mostraFormNovaSenha(sessao);
-      return;
-    }
-    if (jaTratado || !sessao) return;
-    jaTratado = true;
-    document.body.classList.remove("travado");
-    iniciar(sessao);
-  });
+  // Olhamos o próprio link, em vez de depender só do evento do Supabase
+  // (o evento às vezes não chega a tempo). Um link de "esqueci minha senha"
+  // sempre carrega "type=recovery" no final do endereço, seja na parte
+  // depois do # ou depois do ?.
+  var ehRecuperacao = /type=recovery/.test(location.hash) || /type=recovery/.test(location.search);
 
   banco.auth.getSession().then(function (r) {
-    if (jaTratado) return;
     var sessao = r && r.data && r.data.session;
     if (!sessao) { location.replace("../login/"); return; }
-  }).catch(function () { if (!jaTratado) location.replace("../login/"); });
+    if (ehRecuperacao) { mostraFormNovaSenha(sessao); return; }
+    document.body.classList.remove("travado");
+    iniciar(sessao);
+  }).catch(function () { location.replace("../login/"); });
 })();
 
 /* Quando o link de "esqueci minha senha" é clicado, o Supabase já loga a
